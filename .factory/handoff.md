@@ -1,11 +1,5 @@
 # Handoff
 
-Estado en que quedó la última corrida y qué sigue. Cada corrida lo reescribe al terminar.
-
-- Estado: **F5 completada** (issue #7). El graficador soporta zoom anclado al cursor, paneo con Pointer Events (ratón y táctil) y múltiples funciones con colores, visibilidad por fila y leyenda.
-- `js/coords.js`: `zoomAt(viewport, factor, anchor)` mantiene fijo el punto matemático del ancla (factor >1 acerca, <1 aleja; ancla por defecto = centro; factor inválido no cambia nada) y `pan(viewport, dx, dy)` desplaza ambos rangos conservando el tamaño; ambos preservan la escala uniforme. Nuevo `viewportCenter(viewport)`.
-- `js/grapher.js`: la lista de funciones vive en un estado `{id, text, ast, error, color, visible, touched}`. Funciones puras exportadas y testeadas: `CURVE_COLORS`, `pickColor`, `createFunctionEntry`, `addFunction`, `removeFunction`, `toggleVisibility`, `visibleFunctions`. `mountGrapher` monta filas de función (input + botón Ocultar/Mostrar + quitar), botón «Añadir función», canvas con overlay de zoom (+ / − / reiniciar), leyenda con color y expresión, y conserva el viewport entre redibujados (resize usa `fitViewportToSize`). La rueda hace zoom anclado al puntero; el arrastre usa `pointerdown/move/up` con captura opcional; también hay atajos de teclado +, − y 0 en el canvas enfocado. Errores por fila en `.graph-error.graph-fn-error` (no rompen la página).
-- `css/styles.css`: estilos nuevos `.graph-fn*`, `.graph-add`, `.graph-zoom*`, `.graph-legend*`, cursor grab/grabbing y `user-select: none` en el canvas.
-- Tests: `test/coords.test.js` cubre anclaje de `zoomAt` (ida y vuelta a píxeles), zoom out, ancla por defecto, factor inválido y `pan`; `test/grapher.test.js` cubre paleta/colores distintos, asignación cíclica y operaciones de lista sin mutación. `npm test` → **76/76 en verde**.
-- Verificado E2E con Chrome headless + CDP sobre `python -m http.server` (script temporal, ya borrado): arranque con una función y leyenda; rueda y botones +/− cambian el dibujo; arrastre de ratón y táctil cambia el dibujo; añadir `cos(x)` da 2 filas/2 leyendas con colores distintos y se dibuja; quitarla devuelve el canvas bit a bit al estado anterior (viewport conservado); ocultar/mostrar alterna leyenda y dibujo; reiniciar vuelve a la vista inicial; expresión inválida muestra error y se recupera; **0 errores de consola**. **19/19 comprobaciones E2E en verde**.
-- Siguiente paso: ejecutar **F6** (issue #8) — diseño responsive y accesibilidad básica, revisando el nuevo layout de la lista de funciones/zoom a 360 px.
+- Estado: **F6 completada** (issue #8). Solo CSS: foco visible global, `min-width:0`, media query ≤480px (teclado y filas de funciones compactos, canvas cuadrado), objetivos táctiles mayores, `prefers-reduced-motion`.
+- Verificado con Chrome headless + CDP a 360/800/1280 px: sin scroll horizontal. `npm test` en verde.
+- Siguiente paso: **F7** (#9, GitHub Pages) y luego **F8** (#10, README).
