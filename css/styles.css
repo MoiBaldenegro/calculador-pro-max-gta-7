@@ -244,12 +244,73 @@ body {
   font-weight: 600;
 }
 
+.graph {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.graph-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.graph-label {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-style: italic;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.graph-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color: var(--text);
+  background: #0b1220;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+
+.graph-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.3);
+}
+
+.graph-error {
+  margin: 0;
+  min-height: 1.2rem;
+  color: #fca5a5;
+  font-size: 0.9rem;
+}
+
+.graph-error[hidden] {
+  display: none;
+}
+
+.graph-canvas-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 200px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0b1220;
+}
+
 .graph-canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  height: auto;
-  border-radius: 8px;
+  height: 100%;
   background: #0b1220;
+  touch-action: none;
 }
 
 .app-footer {
