@@ -2,5 +2,5 @@
 
 Estado en que quedó la última corrida y qué sigue. Cada corrida lo reescribe al terminar.
 
-- Estado: descubrimiento completado. `docs/vision.md` define producto, usuarios, alcance del MVP verificable, fuera de alcance, supuestos, stack (HTML/CSS/JS vanilla + Canvas + GitHub Pages) y criterios de éxito. No hay código de producto todavía.
-- Siguiente paso: planear la arquitectura y el backlog del MVP (issue de rol `planner`): estructura de archivos, parser de expresiones, módulo del graficador, estrategia de despliegue a GitHub Pages y desglose del alcance en features del backlog.
+- Estado: planificación completada (issue #2). Existen `docs/vision.md`, `docs/architecture.md` y `docs/backlog.md`. Arquitectura definida: estructura de carpetas, fronteras de módulos, parser propio (descenso recursivo → AST, sin `eval`), diseño del graficador (escala uniforme, muestreo por píxel, zoom/paneo), despliegue a GitHub Pages vía Actions con rutas relativas. Backlog: F1–F8 con criterios verificables. **No hay código de producto todavía.**
+- Siguiente paso: ejecutar F1 — crear el esqueleto ejecutable (index.html, css, módulos stub en js/, package.json con `node --test`, tests smoke, README mínimo) para dejar `npm test` en verde y la página servible sin errores de consola.
