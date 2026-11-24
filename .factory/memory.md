@@ -19,3 +19,4 @@ Agrega entradas cortas y fechadas; no borres las de otros salvo que ya no sean c
 - 2026-11-24 — F8 (issue #10): README final con uso, local, tests, despliegue y nota de radianes. Backlog F1–F8 completo.
 - 2026-11-24 — Revisión (issue #11): MVP F1–F8 completo; 76/76 tests, sin eval/localStorage/cookies, README y deploy.yml presentes. Marcado productionReady=true, sin nuevos issues. Único pendiente manual: Settings → Pages → Source = GitHub Actions.
 - 2026-11-24 — Issue #12: el CI de deploy falla porque Pages no está habilitado (Settings → Pages → Source = GitHub Actions). Requiere acción humana; no se tocó el workflow.
+- 2026-11-24: #12 deploy a Pages requiere Settings → Pages → Source = GitHub Actions; no se arregla con código.

@@ -1,3 +1,3 @@
 # Handoff
-- Issue #12: el deploy falla con "Get Pages site failed ... Not Found": Pages no está habilitado en el repo. El workflow es correcto; no es arreglable desde código (GITHUB_TOKEN no puede habilitar Pages).
-- Siguiente paso: una persona debe poner Settings → Pages → Source = GitHub Actions y relanzar el workflow.
+- Issue #12: deploy.yml es correcto; el fallo era Pages no habilitado (configure-pages Not Found). El humano indicó que ya se activó en el repo; la publicación de este cambio dispara el workflow (push a main) para re-verificar.
+- Siguiente paso: si el workflow sigue fallando con Not Found, confirmar Settings → Pages → Source = "GitHub Actions" (no solo Actions habilitado).
