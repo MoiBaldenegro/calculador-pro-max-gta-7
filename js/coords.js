@@ -95,20 +95,48 @@ export function toMath(px, py, viewport, width, height) {
 }
 
 /**
- * Aplica zoom anclado a un punto matemático (§5.3). Se implementa en F5.
+ * Devuelve el centro del viewport en coordenadas matemáticas.
  *
  * @param {Viewport} viewport
- * @param {number} factor - >1 acerca, <1 aleja.
- * @param {{x: number, y: number}} anchor - Punto que se mantiene fijo.
- * @returns {Viewport}
+ * @returns {{x: number, y: number}}
  */
-export function zoomAt(viewport, factor, anchor) {
-  throw new Error("zoomAt no implementado todavía (F5)");
+export function viewportCenter(viewport) {
+  return {
+    x: (viewport.xMin + viewport.xMax) / 2,
+    y: (viewport.yMin + viewport.yMax) / 2,
+  };
 }
 
 /**
- * Desplaza el viewport un delta en coordenadas matemáticas (§5.4).
- * Se implementa en F5.
+ * Aplica zoom anclado a un punto matemático (§5.3): el punto bajo el ancla se
+ * mantiene fijo y ambos rangos se escalan alrededor de él. `factor > 1` acerca
+ * (rango más pequeño) y `factor < 1` aleja. Si el ancla no es finita se usa el
+ * centro del viewport, y un `factor` inválido deja el viewport intacto.
+ *
+ * @param {Viewport} viewport
+ * @param {number} factor - >1 acerca, <1 aleja.
+ * @param {{x: number, y: number}} [anchor] - Punto que se mantiene fijo.
+ * @returns {Viewport}
+ */
+export function zoomAt(viewport, factor, anchor) {
+  if (!Number.isFinite(factor) || factor <= 0) {
+    return { ...viewport };
+  }
+  const center = viewportCenter(viewport);
+  const ax = anchor && Number.isFinite(anchor.x) ? anchor.x : center.x;
+  const ay = anchor && Number.isFinite(anchor.y) ? anchor.y : center.y;
+  return {
+    xMin: ax + (viewport.xMin - ax) / factor,
+    xMax: ax + (viewport.xMax - ax) / factor,
+    yMin: ay + (viewport.yMin - ay) / factor,
+    yMax: ay + (viewport.yMax - ay) / factor,
+  };
+}
+
+/**
+ * Desplaza el viewport un delta en coordenadas matemáticas (§5.4), manteniendo
+ * el tamaño de ambos rangos y, por tanto, la escala uniforme. Deltas no finitos
+ * se ignoran.
  *
  * @param {Viewport} viewport
  * @param {number} dx
@@ -116,5 +144,12 @@ export function zoomAt(viewport, factor, anchor) {
  * @returns {Viewport}
  */
 export function pan(viewport, dx, dy) {
-  throw new Error("pan no implementado todavía (F5)");
+  const safeDx = Number.isFinite(dx) ? dx : 0;
+  const safeDy = Number.isFinite(dy) ? dy : 0;
+  return {
+    xMin: viewport.xMin + safeDx,
+    xMax: viewport.xMax + safeDx,
+    yMin: viewport.yMin + safeDy,
+    yMax: viewport.yMax + safeDy,
+  };
 }

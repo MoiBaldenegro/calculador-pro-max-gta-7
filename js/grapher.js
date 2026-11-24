@@ -3,12 +3,14 @@
  *
  * Capa de UI: la única que toca el Canvas. El dibujo de ejes, la rejilla, el
  * muestreo por píxel, el corte de discontinuidades y el redibujado en resize se
- * implementan en F4 usando `./coords.js` y el motor de `./expr/`. El zoom, el
- * paneo y las múltiples funciones llegan en F5.
+ * implementan en F4; el zoom anclado al cursor, el paneo con Pointer Events y la
+ * lista de múltiples funciones con colores y leyenda en F5.
  *
  * Las funciones puras (`niceStep`, `generateTicks`, `formatTick`,
- * `compileExpression`, `sampleCurve`) se exportan para poder testearlas en Node
- * sin navegador; `mountGrapher` es lo único que toca el DOM/Canvas.
+ * `compileExpression`, `sampleCurve`, `pickColor`, `createFunctionEntry` y las
+ * operaciones de lista `addFunction`/`removeFunction`/`toggleVisibility`/
+ * `visibleFunctions`) se exportan para poder testearlas en Node sin navegador;
+ * `mountGrapher` es lo único que toca el DOM/Canvas.
  */
 
 import { parse } from "./expr/parser.js";
@@ -18,12 +20,127 @@ import {
   fitViewportToSize,
   toPixels,
   toMath,
+  viewportCenter,
+  zoomAt,
+  pan,
 } from "./coords.js";
 
-const CURVE_COLOR = "#38bdf8";
 const DEFAULT_EXPRESSION = "sin(x)";
 const DEFAULT_X_MIN = -10;
 const DEFAULT_X_MAX = 10;
+const ZOOM_FACTOR = 1.25;
+const WHEEL_ZOOM_FACTOR = 1.1;
+
+/**
+ * Paleta de colores para las funciones, asignada de forma cíclica (§5.5).
+ * Colores distinguibles sobre el fondo oscuro y entre sí.
+ */
+export const CURVE_COLORS = [
+  "#38bdf8",
+  "#f472b6",
+  "#a3e635",
+  "#fbbf24",
+  "#c084fc",
+  "#fb7185",
+  "#2dd4bf",
+  "#f97316",
+];
+
+/**
+ * Elige un color para una función nueva evitando repetir los ya usados. Si toda
+ * la paleta está en uso, cae en asignación cíclica por `seed` (§5.5).
+ *
+ * @param {string[]} [usedColors=[]] - Colores ya asignados.
+ * @param {number} [seed=0] - Contador para la asignación cíclica de reserva.
+ * @returns {string} Color en formato CSS.
+ */
+export function pickColor(usedColors = [], seed = 0) {
+  const used = new Set(Array.isArray(usedColors) ? usedColors : []);
+  for (const color of CURVE_COLORS) {
+    if (!used.has(color)) {
+      return color;
+    }
+  }
+  const length = CURVE_COLORS.length;
+  const raw = Number.isFinite(seed) ? Math.trunc(seed) : 0;
+  const index = ((raw % length) + length) % length;
+  return CURVE_COLORS[index];
+}
+
+/**
+ * Crea una entrada de función compilando su expresión. Nunca lanza: si la
+ * expresión es inválida, `ast` queda en `null` y `error` guarda el detalle.
+ *
+ * @param {string} text
+ * @param {string} color
+ * @param {number|string} id
+ * @returns {{id: number|string, text: string, ast: import("./expr/parser.js").AstNode|null, error: {type: string, message: string, position: number}|null, color: string, visible: boolean, touched: boolean}}
+ */
+export function createFunctionEntry(text, color, id) {
+  const source = typeof text === "string" ? text : "";
+  const compiled = compileExpression(source);
+  return {
+    id,
+    text: source,
+    ast: compiled.ok ? compiled.ast : null,
+    error: compiled.ok ? null : compiled.error,
+    color,
+    visible: true,
+    touched: source.trim().length > 0,
+  };
+}
+
+/**
+ * Devuelve una nueva lista con la entrada añadida (no muta la original).
+ *
+ * @template T
+ * @param {T[]} list
+ * @param {T} entry
+ * @returns {T[]}
+ */
+export function addFunction(list, entry) {
+  return [...(Array.isArray(list) ? list : []), entry];
+}
+
+/**
+ * Devuelve una nueva lista sin la entrada con ese `id` (no muta la original).
+ *
+ * @template {{id: number|string}} T
+ * @param {T[]} list
+ * @param {number|string} id
+ * @returns {T[]}
+ */
+export function removeFunction(list, id) {
+  return (Array.isArray(list) ? list : []).filter((entry) => entry.id !== id);
+}
+
+/**
+ * Devuelve una nueva lista con la visibilidad de una entrada invertida.
+ *
+ * @template {{id: number|string, visible: boolean}} T
+ * @param {T[]} list
+ * @param {number|string} id
+ * @returns {T[]}
+ */
+export function toggleVisibility(list, id) {
+  return (Array.isArray(list) ? list : []).map((entry) =>
+    entry.id === id ? { ...entry, visible: !entry.visible } : entry,
+  );
+}
+
+/**
+ * Filtra las entradas visibles y con expresión válida, que son las que se
+ * dibujan en cada frame.
+ *
+ * @template {{visible: boolean, ast: unknown}} T
+ * @param {T[]} list
+ * @returns {T[]}
+ */
+export function visibleFunctions(list) {
+  return (Array.isArray(list) ? list : []).filter(
+    (entry) => entry.visible && entry.ast,
+  );
+}
 
 /**
  * Calcula un "paso bonito" (1, 2, 5 × 10^n) para las marcas de un eje, de modo
@@ -307,17 +424,18 @@ function drawGridAndAxes(ctx, viewport, width, height) {
 }
 
 /**
- * Dibuja la curva a partir de los segmentos muestreados.
+ * Dibuja una curva a partir de los segmentos muestreados, con su color.
  *
  * @param {CanvasRenderingContext2D} ctx
  * @param {Array<Array<{px: number, py: number}>>} segments
+ * @param {string} [color="#38bdf8"]
  */
-function drawCurve(ctx, segments) {
-  ctx.strokeStyle = CURVE_COLOR;
+function drawCurve(ctx, segments, color = CURVE_COLORS[0]) {
+  ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  ctx.fillStyle = CURVE_COLOR;
+  ctx.fillStyle = color;
 
   for (const segment of segments) {
     if (segment.length === 0) {
@@ -340,10 +458,13 @@ function drawCurve(ctx, segments) {
 }
 
 /**
- * Monta el área del graficador dentro del contenedor dado.
+ * Monta el área del graficador dentro del contenedor dado: lista de funciones
+ * con colores, botón de añadir, canvas con zoom (rueda y botones) y paneo
+ * (Pointer Events), y leyenda. Devuelve las referencias principales y un
+ * `destroy` que libera observadores y listeners.
  *
  * @param {HTMLElement} root - Sección `#graficador` donde se renderiza el canvas.
- * @returns {{canvas: HTMLCanvasElement, input: HTMLInputElement, destroy: () => void} | null}
+ * @returns {{canvas: HTMLCanvasElement, input: HTMLInputElement|null, destroy: () => void} | null}
  */
 export function mountGrapher(root) {
   if (!root || typeof root.appendChild !== "function" || typeof document === "undefined") {
@@ -353,29 +474,15 @@ export function mountGrapher(root) {
   const container = document.createElement("div");
   container.className = "graph";
 
-  const field = document.createElement("div");
-  field.className = "graph-field";
+  const list = document.createElement("div");
+  list.className = "graph-fn-list";
+  list.setAttribute("role", "group");
+  list.setAttribute("aria-label", "Funciones a graficar");
 
-  const label = document.createElement("label");
-  label.className = "graph-label";
-  label.htmlFor = "graph-expr";
-  label.textContent = "f(x) =";
-
-  const input = document.createElement("input");
-  input.id = "graph-expr";
-  input.className = "graph-input";
-  input.type = "text";
-  input.autocomplete = "off";
-  input.spellcheck = false;
-  input.value = DEFAULT_EXPRESSION;
-  input.setAttribute("aria-label", "Expresión de la función a graficar");
-
-  field.append(label, input);
-
-  const error = document.createElement("p");
-  error.className = "graph-error";
-  error.setAttribute("role", "alert");
-  error.hidden = true;
+  const addButton = document.createElement("button");
+  addButton.type = "button";
+  addButton.className = "graph-add";
+  addButton.textContent = "+ Añadir función";
 
   const wrap = document.createElement("div");
   wrap.className = "graph-canvas-wrap";
@@ -383,10 +490,37 @@ export function mountGrapher(root) {
   const canvas = document.createElement("canvas");
   canvas.className = "graph-canvas";
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", "Gráfica de la función f(x)");
+  canvas.setAttribute("aria-label", "Gráfica de las funciones f(x)");
 
-  wrap.append(canvas);
-  container.append(field, error, wrap);
+  const zoomControls = document.createElement("div");
+  zoomControls.className = "graph-zoom";
+
+  const zoomIn = document.createElement("button");
+  zoomIn.type = "button";
+  zoomIn.className = "graph-zoom-btn";
+  zoomIn.textContent = "+";
+  zoomIn.setAttribute("aria-label", "Acercar");
+
+  const zoomOut = document.createElement("button");
+  zoomOut.type = "button";
+  zoomOut.className = "graph-zoom-btn";
+  zoomOut.textContent = "−";
+  zoomOut.setAttribute("aria-label", "Alejar");
+
+  const zoomReset = document.createElement("button");
+  zoomReset.type = "button";
+  zoomReset.className = "graph-zoom-btn";
+  zoomReset.textContent = "⟲";
+  zoomReset.setAttribute("aria-label", "Reiniciar vista");
+
+  zoomControls.append(zoomIn, zoomOut, zoomReset);
+  wrap.append(canvas, zoomControls);
+
+  const legend = document.createElement("ul");
+  legend.className = "graph-legend";
+  legend.setAttribute("aria-label", "Leyenda de funciones");
+
+  container.append(list, addButton, wrap, legend);
   root.appendChild(container);
 
   const ctx = canvas.getContext("2d");
@@ -394,19 +528,161 @@ export function mountGrapher(root) {
     viewport: null,
     width: 0,
     height: 0,
-    ast: null,
+    functions: [],
+    nextId: 1,
   };
+  const rows = new Map();
+  let firstInput = null;
 
-  function setExpression(text) {
-    const compiled = compileExpression(text);
-    if (compiled.ok) {
-      state.ast = compiled.ast;
-      error.hidden = true;
-      error.textContent = "";
-    } else {
-      state.ast = null;
-      error.hidden = false;
-      error.textContent = compiled.error.message;
+  function updateEntry(id, patch) {
+    const entry = state.functions.find((item) => item.id === id);
+    if (!entry) {
+      return;
+    }
+    Object.assign(entry, patch);
+    if (Object.prototype.hasOwnProperty.call(patch, "text")) {
+      const compiled = compileExpression(entry.text);
+      entry.ast = compiled.ok ? compiled.ast : null;
+      entry.error = compiled.ok ? null : compiled.error;
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, "text") || entry.touched) {
+      entry.touched = true;
+    }
+    refreshRow(entry);
+    renderLegend();
+    requestDraw();
+  }
+
+  function refreshRow(entry) {
+    const refs = rows.get(entry.id);
+    if (!refs) {
+      return;
+    }
+    refs.row.style.setProperty("--fn-color", entry.color);
+    refs.row.classList.toggle("is-hidden", !entry.visible);
+    refs.toggle.textContent = entry.visible ? "Ocultar" : "Mostrar";
+    refs.toggle.setAttribute("aria-pressed", entry.visible ? "false" : "true");
+    refs.toggle.setAttribute(
+      "aria-label",
+      entry.visible ? "Ocultar función" : "Mostrar función",
+    );
+    const showError = Boolean(entry.error) && entry.touched;
+    refs.error.hidden = !showError;
+    refs.error.textContent = showError ? entry.error.message : "";
+    refs.input.classList.toggle("is-invalid", showError);
+  }
+
+  function createRow(entry) {
+    const row = document.createElement("div");
+    row.className = "graph-fn";
+    row.style.setProperty("--fn-color", entry.color);
+
+    const swatch = document.createElement("span");
+    swatch.className = "graph-fn-swatch";
+    swatch.setAttribute("aria-hidden", "true");
+
+    const controls = document.createElement("div");
+    controls.className = "graph-fn-controls";
+
+    const input = document.createElement("input");
+    input.className = "graph-input graph-fn-input";
+    input.type = "text";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.value = entry.text;
+    input.placeholder = "p. ej. x^2";
+    input.setAttribute("aria-label", `Expresión de la función ${entry.id}`);
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "graph-fn-btn";
+    toggle.addEventListener("click", () => {
+      state.functions = toggleVisibility(state.functions, entry.id);
+      const updated = state.functions.find((item) => item.id === entry.id);
+      if (updated) {
+        refreshRow(updated);
+      }
+      renderLegend();
+      requestDraw();
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "graph-fn-btn graph-fn-remove";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", "Quitar función");
+    remove.addEventListener("click", () => removeEntry(entry.id));
+
+    controls.append(input, toggle, remove);
+
+    const error = document.createElement("p");
+    error.className = "graph-error graph-fn-error";
+    error.setAttribute("role", "alert");
+    error.hidden = true;
+
+    row.append(swatch, controls, error);
+
+    input.addEventListener("input", () => {
+      updateEntry(entry.id, { text: input.value });
+    });
+
+    rows.set(entry.id, { row, input, toggle, error });
+    list.appendChild(row);
+    if (!firstInput) {
+      firstInput = input;
+    }
+    refreshRow(entry);
+  }
+
+  function addEntry(text) {
+    const id = state.nextId;
+    state.nextId += 1;
+    const color = pickColor(
+      state.functions.map((entry) => entry.color),
+      id,
+    );
+    const entry = createFunctionEntry(text, color, id);
+    state.functions = addFunction(state.functions, entry);
+    createRow(entry);
+    renderLegend();
+    requestDraw();
+    return entry;
+  }
+
+  function removeEntry(id) {
+    const refs = rows.get(id);
+    if (refs) {
+      refs.row.remove();
+      rows.delete(id);
+    }
+    state.functions = removeFunction(state.functions, id);
+    if (firstInput && refs && refs.input === firstInput) {
+      const next = rows.values().next();
+      firstInput = next.done ? null : next.value.input;
+    }
+    renderLegend();
+    requestDraw();
+  }
+
+  function renderLegend() {
+    legend.textContent = "";
+    for (const entry of state.functions) {
+      const item = document.createElement("li");
+      item.className = "graph-legend-item";
+      item.classList.toggle("is-hidden", !entry.visible);
+
+      const dot = document.createElement("span");
+      dot.className = "graph-legend-swatch";
+      dot.style.background = entry.color;
+      dot.setAttribute("aria-hidden", "true");
+
+      const label = document.createElement("span");
+      label.className = "graph-legend-expr";
+      const name = entry.text.trim() || "…";
+      label.textContent = `f(x) = ${name}`;
+
+      item.append(dot, label);
+      legend.appendChild(item);
     }
   }
 
@@ -427,9 +703,9 @@ export function mountGrapher(root) {
 
     drawGridAndAxes(ctx, state.viewport, cssWidth, cssHeight);
 
-    if (state.ast) {
-      const segments = sampleCurve(state.ast, state.viewport, cssWidth, cssHeight);
-      drawCurve(ctx, segments);
+    for (const entry of visibleFunctions(state.functions)) {
+      const segments = sampleCurve(entry.ast, state.viewport, cssWidth, cssHeight);
+      drawCurve(ctx, segments, entry.color);
     }
   }
 
@@ -444,10 +720,139 @@ export function mountGrapher(root) {
     });
   }
 
-  input.addEventListener("input", () => {
-    setExpression(input.value);
+  function pointerToCanvas(event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      px: event.clientX - rect.left,
+      py: event.clientY - rect.top,
+    };
+  }
+
+  function applyZoom(factor, anchor) {
+    if (!state.viewport) {
+      return;
+    }
+    state.viewport = zoomAt(state.viewport, factor, anchor);
     requestDraw();
+  }
+
+  function zoomAtCenter(factor) {
+    if (!state.viewport) {
+      return;
+    }
+    applyZoom(factor, viewportCenter(state.viewport));
+  }
+
+  function resetView() {
+    const width = state.width || Math.max(1, Math.round(wrap.clientWidth || 640));
+    const height = state.height || Math.max(1, Math.round(wrap.clientHeight || 360));
+    state.viewport = createViewport(DEFAULT_X_MIN, DEFAULT_X_MAX, width, height);
+    requestDraw();
+  }
+
+  function onWheel(event) {
+    if (!state.viewport) {
+      return;
+    }
+    event.preventDefault();
+    const { px, py } = pointerToCanvas(event);
+    const anchor = toMath(px, py, state.viewport, state.width, state.height);
+    const factor = event.deltaY < 0 ? WHEEL_ZOOM_FACTOR : 1 / WHEEL_ZOOM_FACTOR;
+    applyZoom(factor, anchor);
+  }
+
+  let drag = null;
+
+  function onPointerDown(event) {
+    if (!state.viewport || event.button !== 0) {
+      return;
+    }
+    if (drag) {
+      return;
+    }
+    const { px, py } = pointerToCanvas(event);
+    drag = { pointerId: event.pointerId, px, py };
+    canvas.classList.add("is-panning");
+    try {
+      canvas.setPointerCapture(event.pointerId);
+    } catch {
+      /* setPointerCapture puede no estar disponible en navegadores antiguos */
+    }
+  }
+
+  function onPointerMove(event) {
+    if (!drag || drag.pointerId !== event.pointerId || !state.viewport) {
+      return;
+    }
+    const { px, py } = pointerToCanvas(event);
+    const dxPx = px - drag.px;
+    const dyPx = py - drag.py;
+    if (dxPx === 0 && dyPx === 0) {
+      return;
+    }
+    drag.px = px;
+    drag.py = py;
+    const unitsPerPxX = (state.viewport.xMax - state.viewport.xMin) / state.width;
+    const unitsPerPxY = (state.viewport.yMax - state.viewport.yMin) / state.height;
+    state.viewport = pan(
+      state.viewport,
+      -dxPx * unitsPerPxX,
+      dyPx * unitsPerPxY,
+    );
+    requestDraw();
+  }
+
+  function endDrag(event) {
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+    drag = null;
+    canvas.classList.remove("is-panning");
+    try {
+      canvas.releasePointerCapture(event.pointerId);
+    } catch {
+      /* liberar la captura puede fallar si el puntero ya se soltó */
+    }
+  }
+
+  function onKeyDown(event) {
+    if (!state.viewport) {
+      return;
+    }
+    if (event.key === "+" || event.key === "=") {
+      event.preventDefault();
+      zoomAtCenter(ZOOM_FACTOR);
+    } else if (event.key === "-" || event.key === "_") {
+      event.preventDefault();
+      zoomAtCenter(1 / ZOOM_FACTOR);
+    } else if (event.key === "0") {
+      event.preventDefault();
+      resetView();
+    }
+  }
+
+  addButton.addEventListener("click", () => {
+    const entry = addEntry("");
+    const refs = rows.get(entry.id);
+    if (refs) {
+      refs.input.focus();
+    }
   });
+
+  zoomIn.addEventListener("click", () => zoomAtCenter(ZOOM_FACTOR));
+  zoomOut.addEventListener("click", () => zoomAtCenter(1 / ZOOM_FACTOR));
+  zoomReset.addEventListener("click", resetView);
+
+  canvas.addEventListener("wheel", onWheel, { passive: false });
+  canvas.addEventListener("pointerdown", onPointerDown);
+  canvas.addEventListener("pointermove", onPointerMove);
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+  canvas.addEventListener("lostpointercapture", endDrag);
+  canvas.addEventListener("keydown", onKeyDown);
+  if (!canvas.hasAttribute("tabindex")) {
+    canvas.tabIndex = 0;
+  }
 
   let observer = null;
   if (typeof ResizeObserver === "function") {
@@ -455,12 +860,12 @@ export function mountGrapher(root) {
     observer.observe(wrap);
   }
 
-  setExpression(input.value);
+  addEntry(DEFAULT_EXPRESSION);
   requestDraw();
 
   return {
     canvas,
-    input,
+    input: firstInput,
     destroy() {
       if (observer) {
         observer.disconnect();
@@ -468,6 +873,14 @@ export function mountGrapher(root) {
       if (rafId) {
         cancelAnimationFrame(rafId);
       }
+      canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", endDrag);
+      canvas.removeEventListener("pointercancel", endDrag);
+      canvas.removeEventListener("lostpointercapture", endDrag);
+      canvas.removeEventListener("keydown", onKeyDown);
+      container.remove();
     },
   };
 }

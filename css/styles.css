@@ -311,6 +311,184 @@ body {
   height: 100%;
   background: #0b1220;
   touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.graph-canvas:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.graph-canvas.is-panning {
+  cursor: grabbing;
+}
+
+.graph-fn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.graph-fn {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  align-items: start;
+  column-gap: 0.5rem;
+  row-gap: 0.25rem;
+}
+
+.graph-fn.is-hidden {
+  opacity: 0.55;
+}
+
+.graph-fn-swatch {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-top: 0.85rem;
+  border-radius: 50%;
+  background: var(--fn-color, var(--accent));
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.6);
+}
+
+.graph-fn-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.graph-fn-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.graph-fn-input.is-invalid {
+  border-color: #fca5a5;
+}
+
+.graph-fn-btn {
+  flex: none;
+  padding: 0.55rem 0.6rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text);
+  background: #334155;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.graph-fn-btn:hover {
+  background: #475569;
+}
+
+.graph-fn-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.graph-fn-remove {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #fca5a5;
+}
+
+.graph-fn-error {
+  grid-column: 2;
+  margin: 0;
+}
+
+.graph-add {
+  align-self: flex-start;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.graph-add:hover {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.graph-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.graph-zoom {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.graph-zoom-btn {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  font-family: inherit;
+  color: var(--text);
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.graph-zoom-btn:hover {
+  background: #475569;
+}
+
+.graph-zoom-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.graph-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.graph-legend-item.is-hidden {
+  opacity: 0.5;
+}
+
+.graph-legend-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  flex: none;
+}
+
+.graph-legend-expr {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  word-break: break-all;
 }
 
 .app-footer {
