@@ -19,6 +19,16 @@ python -m http.server 8080
 # abrir http://localhost:8080/
 ```
 
+## Despliegue (GitHub Pages)
+
+Cada push a `main` ejecuta `.github/workflows/deploy.yml`, que publica la raíz
+del repo. Sitio: https://moibaldenegro.github.io/calculador-pro-max-gta-7/
+
+Paso manual (una sola vez): en GitHub, **Settings → Pages → Build and
+deployment → Source = GitHub Actions**. Sin esto el workflow falla en
+`configure-pages`/`deploy-pages`. Todas las rutas del sitio son relativas
+(`./css/...`, `./js/...`) porque se sirve bajo un subpath.
+
 ## Tests
 
 ```bash
